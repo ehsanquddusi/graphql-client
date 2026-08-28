@@ -1,0 +1,61 @@
+{
+    "name": "ehsanquddusi/graphql-client",
+    "description": "A modern, Laravel-friendly GraphQL client with immutable multi-endpoint clients, fluent builders, and full HTTP/GraphQL response access.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "graphql",
+        "client",
+        "http"
+    ],
+    "authors": [
+        {
+            "name": "Ehsan Quddusi",
+            "email": "ehsan@orchardly.co"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "guzzlehttp/psr7": "^2.0",
+        "illuminate/cache": "^10.0|^11.0|^12.0",
+        "illuminate/contracts": "^10.0|^11.0|^12.0",
+        "illuminate/http": "^10.0|^11.0|^12.0",
+        "illuminate/support": "^10.0|^11.0|^12.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "phpunit/phpunit": "^10.5|^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "EhsanQ\\GraphQL\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "EhsanQ\\GraphQL\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "EhsanQ\\GraphQL\\GraphQLServiceProvider"
+            ],
+            "aliases": {
+                "GraphQL": "EhsanQ\\GraphQL\\GraphQLFacade"
+            }
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}
