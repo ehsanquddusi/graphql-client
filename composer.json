@@ -3,6 +3,7 @@
     "description": "A modern, Laravel-friendly GraphQL client with immutable multi-endpoint clients, fluent builders, and full HTTP/GraphQL response access.",
     "type": "library",
     "license": "MIT",
+    "homepage": "https://github.com/ehsanquddusi/graphql-client",
     "keywords": [
         "laravel",
         "graphql",
@@ -15,6 +16,10 @@
             "email": "ehsan@orchardly.co"
         }
     ],
+    "support": {
+        "issues": "https://github.com/ehsanquddusi/graphql-client/issues",
+        "source": "https://github.com/ehsanquddusi/graphql-client"
+    },
     "require": {
         "php": "^8.2",
         "guzzlehttp/psr7": "^2.0",
@@ -50,12 +55,10 @@
     "scripts": {
         "test": "phpunit"
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true,
     "config": {
         "sort-packages": true,
-        "allow-plugins": {
-            "php-http/discovery": true
-        }
+        "lock": false
     }
 }
