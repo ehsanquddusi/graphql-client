@@ -47,17 +47,26 @@ abstract class OperationBuilder
 
     /**
      * @param  array<string, mixed>  $args
+     * @param  array<string, string>  $types
      */
-    public function args(array $args): static
+    public function args(array $args, array $types = []): static
     {
         $this->root->args = array_merge($this->root->args, $args);
+
+        if ($types !== []) {
+            $this->variableTypes($types);
+        }
 
         return $this;
     }
 
-    public function where(string $name, mixed $value): static
+    public function where(string $name, mixed $value, ?string $type = null): static
     {
         $this->root->args[$name] = $value;
+
+        if ($type !== null && $type !== '') {
+            $this->variableTypes([$name => $type]);
+        }
 
         return $this;
     }
@@ -98,6 +107,13 @@ abstract class OperationBuilder
     public function expand(string $field, ?callable $callback = null): static|FieldBuilder
     {
         $nested = $this->field()->expand($field, $callback);
+
+        return $callback ? $this : $nested;
+    }
+
+    public function on(string $type, ?callable $callback = null): static|FieldBuilder
+    {
+        $nested = $this->field()->on($type, $callback);
 
         return $callback ? $this : $nested;
     }

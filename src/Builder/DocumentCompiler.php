@@ -49,17 +49,37 @@ class DocumentCompiler
         $args = $this->compileArgs($node->args);
         $out = $alias.$node->name.($args !== '' ? "({$args})" : '');
 
-        if ($node->children === []) {
+        if (! $node->hasSelections()) {
             return $out;
         }
 
-        $children = [];
+        return $out.' { '.$this->compileSelections($node).' }';
+    }
+
+    protected function compileSelections(FieldNode|InlineFragmentNode $node): string
+    {
+        $parts = [];
 
         foreach ($node->children as $child) {
-            $children[] = $this->compileNode($child);
+            $parts[] = $this->compileNode($child);
         }
 
-        return $out.' { '.implode(' ', $children).' }';
+        foreach ($node->inlineFragments as $fragment) {
+            $parts[] = $this->compileInlineFragment($fragment);
+        }
+
+        return implode(' ', $parts);
+    }
+
+    protected function compileInlineFragment(InlineFragmentNode $fragment): string
+    {
+        if (! $fragment->hasSelections()) {
+            throw new GraphQLException(
+                "Inline fragment on [{$fragment->type}] must select at least one field.",
+            );
+        }
+
+        return '... on '.$fragment->type.' { '.$this->compileSelections($fragment).' }';
     }
 
     /**

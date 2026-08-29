@@ -8,6 +8,7 @@ use EhsanQ\GraphQL\GraphQLFacade as GraphQL;
 use EhsanQ\GraphQL\Response\GraphQLResponse;
 use EhsanQ\GraphQL\Tests\TestCase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 class QueryExecutionTest extends TestCase
@@ -43,6 +44,29 @@ class QueryExecutionTest extends TestCase
                 && str_contains($body['query'], 'id')
                 && str_contains($body['query'], 'name');
         });
+    }
+
+    public function test_response_exposes_data_as_object_and_collection(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    'products' => [
+                        ['id' => '1', 'name' => 'Apple', 'price' => 2],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $response = GraphQL::query('products')->select('id', 'name', 'price')->get();
+
+        $this->assertSame('Apple', $response->object()->products[0]->name);
+        $this->assertSame('Apple', $response->object('products')[0]->name);
+
+        $products = $response->collect('products');
+        $this->assertInstanceOf(Collection::class, $products);
+        $this->assertSame(['Apple'], $products->pluck('name')->all());
+        $this->assertSame(['products'], $response->collect()->keys()->all());
     }
 
     public function test_mutation_posts_a_mutation_document(): void

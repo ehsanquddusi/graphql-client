@@ -42,15 +42,21 @@ $response->http();
 
 ## Installation
 
+Require the package with Composer:
+
 ```bash
 composer require ehsanquddusi/graphql-client
 ```
+
+On Laravel, the service provider and `GraphQL` facade are auto-discovered. You do not need to register them by hand.
 
 Publish the config file if you want to customize defaults:
 
 ```bash
 php artisan vendor:publish --tag=graphql-config
 ```
+
+Then set the endpoint (and auth) in `.env` or `config/graphql.php`. See [Configuration](#configuration).
 
 ## Configuration
 
@@ -148,6 +154,8 @@ GraphQL::query('country')
     ->get();
 ```
 
+Pass a GraphQL type as the third argument when inference is not enough: `where('id', $id, 'ID!')`. You can also set types with `variableTypes(['id' => 'ID!'])`. See [Variables](#variables).
+
 ### Multiple arguments
 
 GraphQL:
@@ -204,6 +212,82 @@ GraphQL::query('products')
 ```
 
 `expand('supplier')` without a callback also works, then `select()` on the nested builder.
+
+### Unions and interfaces
+
+GraphQL unions and interfaces cannot be queried as plain fields. Use `on()` to compile an inline fragment (`... on Type`). The callback is the same shape as `expand()`.
+
+GraphQL:
+
+```graphql
+query {
+  me {
+    ... on User {
+      id
+      name
+      organization {
+        slug
+        id
+        name
+      }
+    }
+  }
+}
+```
+
+Client:
+
+```php
+GraphQL::query('me')
+    ->on('User', fn ($q) => $q
+        ->select('id', 'name')
+        ->expand('organization', fn ($o) => $o->select('slug', 'id', 'name'))
+    )
+    ->get();
+```
+
+Nested unions work the same way: `expand()` to the field, then `on()` for each possible type. Fields shared by every member (or on the interface) stay on `select()`; type-specific fields go inside `on()`. `__typename` is a normal field.
+
+GraphQL:
+
+```graphql
+query ($id: ID!) {
+  getOrder(id: $id) {
+    id
+    belongsTo {
+      __typename
+      ... on Organization {
+        id
+        name
+      }
+      ... on User {
+        id
+        email
+      }
+    }
+  }
+}
+```
+
+Client:
+
+```php
+GraphQL::query('getOrder')
+    ->where('id', $id, 'ID!')
+    ->select('id')
+    ->expand('belongsTo', fn ($q) => $q
+        ->select('__typename')
+        ->on('Organization', fn ($o) => $o->select('id', 'name'))
+        ->on('User', fn ($u) => $u->select('id', 'email'))
+    )
+    ->get();
+```
+
+`on('Organization')` without a callback returns a nested builder, matching `expand()`. Calling `on()` twice with the same type merges into one fragment.
+
+`on()` is a builder method. If a schema field is named `on`, select it with `expand('on', ...)` or `select('on')`.
+
+Named fragments, directives, and multi-root documents still use `raw()` or `file()`.
 
 ### Dynamic field helpers
 
@@ -284,7 +368,29 @@ GraphQL::query('products')
     ->get();
 ```
 
-Override inferred types when the schema needs an input object:
+Booleans, ints, floats, strings, and lists of scalars are inferred. Pass the GraphQL type as the third argument to `where()` when inference is wrong (`ID!`, `JSON!`, enums) or when the schema requires an input object.
+
+GraphQL:
+
+```graphql
+query ($id: ID!) {
+  product(id: $id) {
+    id
+    name
+  }
+}
+```
+
+Client:
+
+```php
+GraphQL::query('product')
+    ->where('id', $id, 'ID!')
+    ->select('id', 'name')
+    ->get();
+```
+
+For a map of arguments, pass types as the second argument to `args()`, or set them with `variableTypes()`. Both are optional; use whichever is clearer.
 
 GraphQL:
 
@@ -296,12 +402,43 @@ mutation ($input: ProductInput!) {
 }
 ```
 
-Client:
+Client, types on `args()`:
+
+```php
+GraphQL::mutation('createProduct')
+    ->args(['input' => $input], ['input' => 'ProductInput!'])
+    ->select('id')
+    ->send();
+```
+
+Client, `variableTypes()` as a separate step (same document):
 
 ```php
 GraphQL::mutation('createProduct')
     ->args(['input' => $input])
     ->variableTypes(['input' => 'ProductInput!'])
+    ->select('id')
+    ->send();
+```
+
+`variableTypes()` can also override a type after `where()`, or set several types at once:
+
+```php
+GraphQL::query('getTest')
+    ->where('id', $id)
+    ->variableTypes(['id' => 'ID!'])
+    ->select('id', 'crop')
+    ->get();
+
+GraphQL::mutation('createTestForOrder')
+    ->args([
+        'id' => $orderId,
+        'test' => $test,
+    ])
+    ->variableTypes([
+        'id' => 'ID!',
+        'test' => 'TestInput!',
+    ])
     ->select('id')
     ->send();
 ```
@@ -360,7 +497,53 @@ GraphQL::noCache();
 
 Cache keys include the endpoint, document, variables, and a hash of the auth identity — never the raw `Authorization` header. Hits still return `GraphQLResponse`.
 
-## Response contract
+## Working with the response
+
+`get()`, `send()`, and `execute()` return a `GraphQLResponse`. GraphQL `data` is decoded JSON: nested **PHP arrays** by default. Convert that payload when you want objects or a collection.
+
+```php
+$response = GraphQL::query('products')
+    ->select('id', 'name', 'price')
+    ->get();
+
+$response->throw();
+
+$all = $response->data();
+// ['products' => [['id' => '1', 'name' => 'Apple', 'price' => 2], ...]]
+
+$products = $response->data('products');
+$name = $response->data('products.0.name'); // 'Apple'
+```
+
+**PHP object** (`stdClass` tree, same shape as the JSON):
+
+```php
+$payload = $response->object();
+$payload->products[0]->name; // 'Apple'
+
+$products = $response->object('products');
+$products[0]->name;
+```
+
+**Laravel collection** (lists and maps). Pass a key to collect a nested list:
+
+```php
+$products = $response->collect('products');
+
+$products->pluck('name');
+$products->firstWhere('id', '1');
+$products->map(fn ($product) => $product['name']);
+```
+
+`collect()` without a key wraps the whole `data` object (keys like `products`). Scalar fields become a one-item collection.
+
+**Full HTTP payload** (includes `data`, `errors`, and `extensions`) and the raw body:
+
+```php
+$response->json();                 // decoded body as array
+$response->json('data.products');  // dotted path into the payload
+$response->body();                 // raw JSON string
+```
 
 HTTP 200 can still contain GraphQL `errors`. That is not treated as a transport failure.
 
@@ -368,8 +551,10 @@ HTTP 200 can still contain GraphQL `errors`. That is not treated as a transport 
 | --- | --- |
 | `successful()` / `failed()` / `status()` | HTTP |
 | `hasErrors()` / `errors()` | GraphQL payload |
-| `data()` / `data('products')` | GraphQL `data` |
-| `json()` / `body()` / `headers()` / `header()` | payload / HTTP |
+| `data()` / `data('products')` | GraphQL `data` as arrays |
+| `object()` / `object('products')` | GraphQL `data` as `stdClass` |
+| `collect()` / `collect('products')` | GraphQL `data` as `Illuminate\Support\Collection` |
+| `json()` / `body()` / `headers()` / `header()` | full payload / HTTP |
 | `http()` | `Illuminate\Http\Client\Response` |
 | `throw()` | HTTP failure, then GraphQL errors |
 | `throwIfGraphQLErrors()` | GraphQL errors only |

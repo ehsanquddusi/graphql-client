@@ -2,6 +2,7 @@
 
 namespace EhsanQ\GraphQL\Tests\Unit;
 
+use EhsanQ\GraphQL\Exceptions\GraphQLException;
 use EhsanQ\GraphQL\GraphQLFacade as GraphQL;
 use EhsanQ\GraphQL\Tests\TestCase;
 
@@ -76,6 +77,88 @@ class QueryBuilderTest extends TestCase
         );
     }
 
+    public function test_on_compiles_an_inline_fragment_on_the_root_field(): void
+    {
+        $query = GraphQL::query('me')
+            ->on('User', fn ($q) => $q
+                ->select('id', 'name')
+                ->expand('organization', fn ($o) => $o->select('slug', 'id', 'name'))
+            )
+            ->toGraphQL();
+
+        $this->assertSame(
+            'query { me { ... on User { id name organization { slug id name } } } }',
+            $query,
+        );
+    }
+
+    public function test_on_compiles_nested_inline_fragments(): void
+    {
+        $builder = GraphQL::query('getTestOrder')
+            ->where('id', '42')
+            ->variableTypes(['id' => 'ID!'])
+            ->select('id')
+            ->expand('belongsTo', fn ($q) => $q
+                ->select('__typename')
+                ->on('Organization', fn ($o) => $o->select('id', 'name'))
+                ->on('User', fn ($u) => $u->select('id', 'email'))
+            );
+
+        $this->assertSame(
+            'query ($id: ID!) { getTestOrder(id: $id) { id belongsTo { __typename ... on Organization { id name } ... on User { id email } } } }',
+            $builder->toGraphQL(),
+        );
+
+        $this->assertSame(['id' => '42'], $builder->getVariables());
+    }
+
+    public function test_on_without_callback_returns_a_fragment_builder(): void
+    {
+        $query = GraphQL::query('me')
+            ->on('User')
+            ->select('id', 'name')
+            ->toGraphQL();
+
+        $this->assertSame(
+            'query { me { ... on User { id name } } }',
+            $query,
+        );
+    }
+
+    public function test_on_merges_duplicate_types_into_one_fragment(): void
+    {
+        $query = GraphQL::query('me')
+            ->on('User', fn ($q) => $q->select('id'))
+            ->on('User', fn ($q) => $q->select('name'))
+            ->toGraphQL();
+
+        $this->assertSame(
+            'query { me { ... on User { id name } } }',
+            $query,
+        );
+    }
+
+    public function test_empty_inline_fragment_throws(): void
+    {
+        $this->expectException(GraphQLException::class);
+        $this->expectExceptionMessage('Inline fragment on [User] must select at least one field.');
+
+        GraphQL::query('me')
+            ->on('User', fn ($q) => $q)
+            ->toGraphQL();
+    }
+
+    public function test_inline_fragment_rejects_field_arguments(): void
+    {
+        $this->expectException(GraphQLException::class);
+        $this->expectExceptionMessage('Arguments and aliases cannot be applied to an inline fragment.');
+
+        GraphQL::query('me')
+            ->on('User')
+            ->where('id', '1')
+            ->toGraphQL();
+    }
+
     public function test_expand_without_callback_returns_nested_builder(): void
     {
         $query = GraphQL::query('products')
@@ -115,6 +198,43 @@ class QueryBuilderTest extends TestCase
         $this->assertSame(
             'query ($input: ProductInput!) { createProduct(input: $input) { id } }',
             $builder->toGraphQL(),
+        );
+    }
+
+    public function test_where_accepts_a_variable_type(): void
+    {
+        $builder = GraphQL::query('getTest')
+            ->where('id', '42', 'ID!')
+            ->select('id');
+
+        $this->assertSame(
+            'query ($id: ID!) { getTest(id: $id) { id } }',
+            $builder->toGraphQL(),
+        );
+    }
+
+    public function test_args_accepts_variable_types(): void
+    {
+        $builder = GraphQL::mutation('createProduct')
+            ->args(['input' => ['name' => 'Apple']], ['input' => 'ProductInput!'])
+            ->select('id');
+
+        $this->assertSame(
+            'mutation ($input: ProductInput!) { createProduct(input: $input) { id } }',
+            $builder->toGraphQL(),
+        );
+    }
+
+    public function test_nested_where_accepts_a_variable_type(): void
+    {
+        $query = GraphQL::query('farmer')
+            ->select('id')
+            ->expand('plot', fn ($q) => $q->where('id', '9', 'ID!')->select('location'))
+            ->toGraphQL();
+
+        $this->assertSame(
+            'query ($id: ID!) { farmer { id plot(id: $id) { location } } }',
+            $query,
         );
     }
 

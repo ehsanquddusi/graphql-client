@@ -7,7 +7,7 @@ class SelectionSet
     /**
      * @param  string|array<int|string, string>  ...$fields
      */
-    public static function apply(FieldNode $node, mixed ...$fields): void
+    public static function apply(FieldNode|InlineFragmentNode $node, mixed ...$fields): void
     {
         foreach (self::normalize($fields) as $alias => $field) {
             $node->addPath($field, is_string($alias) ? $alias : null);

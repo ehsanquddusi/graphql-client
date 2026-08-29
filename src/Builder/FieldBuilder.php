@@ -3,13 +3,14 @@
 namespace EhsanQ\GraphQL\Builder;
 
 use Closure;
+use EhsanQ\GraphQL\Exceptions\GraphQLException;
 use EhsanQ\GraphQL\Response\GraphQLResponse;
 
 class FieldBuilder
 {
     public function __construct(
         protected OperationBuilder $operation,
-        protected FieldNode $node,
+        protected FieldNode|InlineFragmentNode $node,
     ) {}
 
     /**
@@ -24,24 +25,33 @@ class FieldBuilder
 
     /**
      * @param  array<string, mixed>  $args
+     * @param  array<string, string>  $types
      */
-    public function args(array $args): static
+    public function args(array $args, array $types = []): static
     {
-        $this->node->args = array_merge($this->node->args, $args);
+        $this->fieldNode()->args = array_merge($this->fieldNode()->args, $args);
+
+        if ($types !== []) {
+            $this->operation->variableTypes($types);
+        }
 
         return $this;
     }
 
-    public function where(string $name, mixed $value): static
+    public function where(string $name, mixed $value, ?string $type = null): static
     {
-        $this->node->args[$name] = $value;
+        $this->fieldNode()->args[$name] = $value;
+
+        if ($type !== null && $type !== '') {
+            $this->operation->variableTypes([$name => $type]);
+        }
 
         return $this;
     }
 
     public function alias(string $alias): static
     {
-        $this->node->alias = $alias;
+        $this->fieldNode()->alias = $alias;
 
         return $this;
     }
@@ -50,6 +60,19 @@ class FieldBuilder
     {
         $child = $this->node->child($field);
         $builder = new self($this->operation, $child);
+
+        if ($callback) {
+            $callback($builder);
+
+            return $this;
+        }
+
+        return $builder;
+    }
+
+    public function on(string $type, ?callable $callback = null): static|self
+    {
+        $builder = new self($this->operation, $this->node->inlineFragment($type));
 
         if ($callback) {
             $callback($builder);
@@ -122,5 +145,14 @@ class FieldBuilder
         }
 
         return $parameters;
+    }
+
+    protected function fieldNode(): FieldNode
+    {
+        if (! $this->node instanceof FieldNode) {
+            throw new GraphQLException('Arguments and aliases cannot be applied to an inline fragment.');
+        }
+
+        return $this->node;
     }
 }

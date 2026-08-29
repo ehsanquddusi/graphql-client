@@ -6,6 +6,7 @@ use EhsanQ\GraphQL\Exceptions\GraphQLException;
 use EhsanQ\GraphQL\Exceptions\GraphQLHttpException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 
 class GraphQLResponse
 {
@@ -51,6 +52,36 @@ class GraphQLResponse
         }
 
         return data_get($data, $key, $default);
+    }
+
+    /**
+     * GraphQL `data` as a Laravel collection. Pass a key to collect a nested list.
+     *
+     * @param  array-key|null  $key
+     */
+    public function collect(mixed $key = null): Collection
+    {
+        $value = $key === null ? $this->data() : $this->data($key);
+
+        if ($value === null) {
+            return new Collection;
+        }
+
+        return Collection::make(Arr::wrap($value));
+    }
+
+    /**
+     * GraphQL `data` as nested `stdClass` objects (JSON objects), or `null` when missing.
+     */
+    public function object(mixed $key = null): mixed
+    {
+        $value = $key === null ? $this->data() : $this->data($key);
+
+        if ($value === null) {
+            return null;
+        }
+
+        return json_decode(json_encode($value, JSON_THROW_ON_ERROR), false, 512, JSON_THROW_ON_ERROR);
     }
 
     /**
