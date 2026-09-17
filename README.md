@@ -38,6 +38,7 @@ $response->http();
 ## Requirements
 
 - PHP 8.2+
+- Guzzle 7.5+ (`guzzlehttp/guzzle`) — Composer installs it with this package. Laravel 10 does not ship Guzzle by default; 11 and 12 do.
 - Laravel 10, 11, or 12 (or `illuminate/http` + `illuminate/support` outside a full Laravel app)
 
 ## Installation
@@ -566,7 +567,7 @@ $response->throwIfGraphQLErrors();
 
 ## Testing
 
-The transport is Laravel's HTTP client, so fakes work:
+The transport is Laravel's HTTP client, so fakes work. This package requires Guzzle, which Laravel 10 does not install on its own:
 
 ```php
 Http::fake([
@@ -582,7 +583,7 @@ Http::assertSent(fn ($request) => $request->url() === 'https://api.example.com/g
 
 ## Standalone PHP
 
-The core talks to a `Transport` interface. Construct a client with Laravel's HTTP factory (no full Laravel app required):
+The core talks to a `Transport` interface. Construct a client with Laravel's HTTP factory (no full Laravel app required). Guzzle still needs to be installed — `composer require ehsanquddusi/graphql-client` pulls it in:
 
 ```php
 use EhsanQ\GraphQL\GraphQL;
