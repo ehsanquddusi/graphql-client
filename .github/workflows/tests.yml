@@ -30,29 +30,42 @@ jobs:
           - php: '8.2'
             laravel: '10.*'
             testbench: '8.*'
+            phpunit: '10.5.*'
           - php: '8.3'
             laravel: '10.*'
             testbench: '8.*'
+            phpunit: '10.5.*'
           - php: '8.2'
             laravel: '11.*'
             testbench: '9.*'
+            phpunit: '11.*'
           - php: '8.3'
             laravel: '11.*'
             testbench: '9.*'
+            phpunit: '11.*'
           - php: '8.4'
             laravel: '11.*'
             testbench: '9.*'
+            phpunit: '11.*'
           - php: '8.2'
             laravel: '12.*'
             testbench: '10.*'
+            phpunit: '11.*'
           - php: '8.3'
             laravel: '12.*'
             testbench: '10.*'
+            phpunit: '11.*'
           - php: '8.4'
             laravel: '12.*'
             testbench: '10.*'
+            phpunit: '11.*'
 
     name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+
+    env:
+      # Laravel 10/11 still have Packagist advisories; Composer 2.9 blocks those
+      # versions during resolve. This matrix is compatibility CI, not a production lock.
+      COMPOSER_NO_SECURITY_BLOCKING: 1
 
     steps:
       - uses: actions/checkout@v4
@@ -63,12 +76,17 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: json, mbstring
           coverage: none
+          tools: composer:v2
 
       - name: Install dependencies
         run: |
-          composer require "illuminate/http:${{ matrix.laravel }}" "illuminate/support:${{ matrix.laravel }}" "illuminate/cache:${{ matrix.laravel }}" "illuminate/contracts:${{ matrix.laravel }}" --no-interaction --no-update
-          composer require "orchestra/testbench:${{ matrix.testbench }}" --dev --no-interaction --no-update
-          composer update --prefer-dist --no-interaction --no-progress
+          composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies \
+            --with="illuminate/cache:${{ matrix.laravel }}" \
+            --with="illuminate/contracts:${{ matrix.laravel }}" \
+            --with="illuminate/http:${{ matrix.laravel }}" \
+            --with="illuminate/support:${{ matrix.laravel }}" \
+            --with="orchestra/testbench:${{ matrix.testbench }}" \
+            --with="phpunit/phpunit:${{ matrix.phpunit }}"
 
       - name: Run tests
         run: vendor/bin/phpunit --colors=always
