@@ -22,6 +22,7 @@
     },
     "require": {
         "php": "^8.2",
+        "guzzlehttp/guzzle": "^7.5",
         "guzzlehttp/psr7": "^2.0",
         "illuminate/cache": "^10.0|^11.0|^12.0",
         "illuminate/contracts": "^10.0|^11.0|^12.0",
